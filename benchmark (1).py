@@ -93,3 +93,29 @@ from math import sqrt
 y_pred_train = model.predict(x_train)
 mae = mean_absolute_error(y_train, y_pred_train)
 print("MAE : ", mae)
+
+#%%
+
+from sklearn.ensemble import RandomForestRegressor
+import pandas as pd
+import matplotlib.pyplot as plt
+
+#%%
+# Récupération de l'importance des features
+feature_importances = model.feature_importances_
+
+# Création d'un DataFrame pour afficher les importances
+feature_importance_df = pd.DataFrame({'Feature': x_train.columns, 'Importance': feature_importances})
+
+# Trier le DataFrame par importance descendante
+feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
+
+# Affichage des 10 premières features les plus importantes
+print(feature_importance_df.head(10))
+
+# Tracé d'un graphique des importances
+plt.figure(figsize=(10, 6))
+plt.barh(feature_importance_df['Feature'][:10], feature_importance_df['Importance'][:10])
+plt.xlabel('Importance')
+plt.title('Top 10 des importances des features dans le modèle RandomForest')
+plt.show()
