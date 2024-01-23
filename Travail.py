@@ -40,8 +40,6 @@ def get_cv(X, y):
     cv = ShuffleSplit(n_splits=8, test_size=0.5, random_state=57)
     return cv.split(X)
 
-#%%
-
 path_to_data = "data"
 # Load files
 x_train = pd.read_csv(path_to_data + "/training_input.csv", index_col=0)
@@ -49,7 +47,6 @@ y_train = pd.read_csv(path_to_data + "/training_output.csv", index_col=0)
 x_test = pd.read_csv(path_to_data + "/testing_input.csv", index_col=0)
 
 
-#%%
 lecv = get_cv(x_train, y_train)
 
 #%%
@@ -146,28 +143,6 @@ x_train = valnulles_encoder.fit_transform(x_train)
 #%% traitement des données nulles
 
 
-x_train.isnull().sum(axis = 0)
-
-
-#%%
-# on étudie les types de territoires
-x_train['type_territoire'].value_counts()
-
-
-#%% on essaie dateencoder sur x_train
-
-#%%
-# on voit qu'il y a des valeurs nulles dans les colonnes suivantes :
-# conso_reseau_BT, conso_reseau_HTA, prod_reseau_BT, prod_reseau_HTA, conso_clients_RES, conso_clients_PRO, conso_clients_ENT
-# compbien il ya d'observations ? 
-x_train.shape
-# ressort les lignes qui n'ont pas de conso_reseau_BT
-x_train[x_train['conso_reseau_BT'].isnull()]
-
-
-
-x_train.info()
-
 #%%
 
 # preparartion des données
@@ -210,24 +185,9 @@ date_encoder = FunctionTransformer(_encode_dates)
 x_train = date_encoder.fit_transform(x_train)
 
 #%%
-x_train.head(100)
 
-# il faut vérivier dans xtrain que la somme de conso_reseau_BT et conso_reseau_HT est égale à conso_totale
-# idem pour prod_totale, prod_reseau_BT et prod_reseau_HT
 
-x_train['conso_totale'].head(100)
-constot = x_train['conso_reseau_BT']+x_train['conso_reseau_HTA']   # on voit que c'est égal à conso_totale
-constot.head(100)
-
-# on somme conso_clients_RES, conso_clients_PRO et conso_clients_ENT pour voir si c'est égal à conso_reseau_BT
-
-consores = x_train['conso_clients_RES']+x_train['conso_clients_PRO']+x_train['conso_clients_ENT']
-consores.head(100)
-
-# utiliser ces inegalités pour combler les données manquantes
-# puis supprimer les dimensions corréllés
 #%%
-x_train.info()
 
 #%%
 def _encode_prop(X):
@@ -259,11 +219,6 @@ def _encode_prop(X):
 prop_encoder = FunctionTransformer(_encode_prop)
 
 x_train = prop_encoder.fit_transform(x_train)
-
-
-#%%
-
-
 
 #%% 
 
@@ -307,22 +262,9 @@ x_train = puissance_encoder.fit_transform(x_train)
 
 
 #%%
-    
-x_train.info()
 
-# on etudie les valeurs vides
-
-#%% on compte les valeurs nulles par colonne
-x_train.isnull().sum(axis = 0)
-# on voit qu'il y a des valeurs nulles dans les colonnes suivantes :
-# conso_reseau_BT, conso_reseau_HTA, prod_reseau_BT, prod_reseau_HTA, conso_clients_RES, conso_clients_PRO, conso_clients_ENT
-# compbien il ya d'observations ? 
-x_train.shape
-# ressort les lignes qui n'ont pas de conso_reseau_BT
-x_train[x_train['conso_reseau_BT'].isnull()]
-
-#%%
-
+############################################"
+# STOP"
 
 # on transforme pour les  encoding de colonnes
 
@@ -336,13 +278,31 @@ def _encode_columns(X):
                                 "year", "month", "saison"])
 
 #%%
+
 columns_encoder = FunctionTransformer(_encode_columns)
+
 
 x_train = columns_encoder.fit_transform(x_train)
 
+# commet faire ordinal_encoder d'un objet
+# on va faire un ordinal encoder pour les arbres
+# on va faire un onehot encoder pour les autres
+
+x_train.info()
+
+#%% 
+x_train["type_territoire"] 
+
 #%%
 
+
 x_train = pd.read_csv(path_to_data + "/training_input.csv", index_col=0)
+
+#%% 
+# on veut faire un ordinal encoder sur la colonne "type_territoire" de x_train
+le = OrdinalEncoder()
+x_train["type_territoire"] = le.fit_transform(x_train["type_territoire"])
+
 
 #%%
 x_train.info()
@@ -360,7 +320,7 @@ models = {
         max_iter = 80, max_depth= 5, min_samples_leaf= 3, learning_rate=0.1 , random_state=0, loss='squared_error'),
     "linearregression": LinearRegression(),
     "lasso": Lasso(alpha=0.5),
-    "lassoCv": LassoCV(alphas=[10000, 100000, 10000000 ], max_iter=10, tol=0.01, cv = 5),
+    "lassoCv": LassoCV(alphas=[10000, 20000, 30000, 100000, 10000000 ], max_iter=20, tol=0.01, cv = 5),
 }
 
 
@@ -385,6 +345,7 @@ x_train = pd.read_csv(path_to_data + "/training_input.csv", index_col=0)
 y_train = pd.read_csv(path_to_data + "/training_output.csv", index_col=0)
 x_test = pd.read_csv(path_to_data + "/testing_input.csv", index_col=0)
 
+#%%
 
 def get_estimator():
 
@@ -420,6 +381,8 @@ def get_estimator():
     )
 
     return pileline
+
+#%%
 
 
 
@@ -494,6 +457,19 @@ print("MAE : ", mae)
 
 #%%
 
+## on prépare une cross validation
+from sklearn.model_selection import cross_val_score 
+from sklearn.model_selection import ShuffleSplit
+
+cv = ShuffleSplit(n_splits=8, test_size=0.5, random_state=57)
+scores = cross_val_score(model, x_train, y_train, cv=cv, scoring='neg_mean_absolute_error')
+print(scores)
+
+
+
+
+#%%
+
 # on étudie les coefficients de la regression linéaire
 
 lasso_coefficients = model.named_steps['mod'].coef_
@@ -517,9 +493,9 @@ print('Coefficients du modèle LASSO avec noms de caractéristiques :\n', coeffi
 
 #%%
 
-alphas = model.named_steps['mod'].alpha_
+alpha = model.named_steps['mod'].alpha_
 
-alphas
+alpha
 
 #%%
 plt.figure(figsize=(12, 8))

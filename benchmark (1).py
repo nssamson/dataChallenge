@@ -18,13 +18,14 @@ x_test = pd.read_csv(path_to_data + "/testing_input.csv", index_col=0)
 
 #%%
 
-x_train
+x_train.info()
 
 #%%
 x_test
 
 #%%
 # on exporte x_train dans un fichier
+
 x_train.to_csv("x_train.csv")
 
 #%%
@@ -58,7 +59,11 @@ x_train.isnull().sum(axis = 0)
 
 # Fit model
 model = RandomForestRegressor(n_estimators = 10, random_state=0, max_depth=5, criterion="absolute_error")
-model.fit(x_train, y_train.values.ravel())
+
+#model.fit(x_train, y_train.values.ravel())
+
+model.fit(x_train, y_train)
+
 
 #%%
 # Prediction
@@ -93,6 +98,10 @@ from math import sqrt
 y_pred_train = model.predict(x_train)
 mae = mean_absolute_error(y_train, y_pred_train)
 print("MAE : ", mae)
+
+#%%
+
+
 
 #%%
 
