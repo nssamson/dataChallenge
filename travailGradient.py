@@ -48,9 +48,17 @@ x_train = pd.read_csv(path_to_data + "/training_input.csv", index_col=0)
 y_train = pd.read_csv(path_to_data + "/training_output.csv", index_col=0)
 x_test = pd.read_csv(path_to_data + "/testing_input.csv", index_col=0)
 
+le = LabelEncoder()
+
+x_test["type_territoire"] = le.fit_transform(x_test["type_territoire"])
+x_train["type_territoire"] = le.fit_transform(x_train["type_territoire"])
+
+
+
 lecv = get_cv(x_train, y_train)
 
 #%%
+
 
 #%%
 
@@ -342,14 +350,14 @@ def get_estimator3():
        'conso_clients_RES_2', 'conso_clients_PRO_2', 'conso_clients_ENT_2',
        'conso_reseau_BT_2', 'conso_reseau_HTA_2']
     obj_features = ["type_territoire"]
-    categ_features = ["year", "month", "saison"]
-    suppr_features = ["type_territoire","id_poste_source", "id_dr"]
+    categ_features = ["type_territoire", "year", "month", "saison"]
+    suppr_features = ["id_poste_source", "id_dr"]
 
     # cat_processor = OrdinalEncoder(categories=[custom_categories.get(col, 'auto') for col in categ_features])
 
     preprocessor = ColumnTransformer(
         transformers=[
-            #('label_encoding', lab_processor, obj_features),
+            # ('label_encoding', lab_processor, obj_features),
             ('num','passthrough', num_columns),
             ('ordinal_encoding', cat_processor, categ_features),
             ('drop_columns', 'drop', suppr_features)
@@ -492,7 +500,11 @@ feature_importances = model.named_steps['mod'].feature_importances_
 
 # on récupère le nom des colonnes dans le pipeline
 
-col = model.named_steps['proc'].transformers_[0][2] + model.named_steps['proc'].transformers_[1][2]
+
+column_transformer = model.named_steps['proc']
+col = column_transformer.get_feature_names_out()
+
+# col = model.named_steps['proc'].transformers_[0][2] + model.named_steps['proc'].transformers_[1][2]
 
 col
 
