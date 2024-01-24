@@ -26,8 +26,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
 from sklearn.linear_model import LassoCV
 from sklearn.model_selection import train_test_split
-from scipy.stats import randint
-from sklearn.model_selection import RandomizedSearchCV
 
 #%%
 
@@ -38,13 +36,8 @@ from sklearn.model_selection import RandomizedSearchCV
 
 # pour les données de cross validation
 def get_cv(X, y):
-    cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
+    cv = ShuffleSplit(n_splits=8, test_size=0.5, random_state=57)
     return cv.split(X)
-
-
-
-
-#%%
 
 path_to_data = "data"
 # Load files
@@ -52,13 +45,8 @@ x_train = pd.read_csv(path_to_data + "/training_input.csv", index_col=0)
 y_train = pd.read_csv(path_to_data + "/training_output.csv", index_col=0)
 x_test = pd.read_csv(path_to_data + "/testing_input.csv", index_col=0)
 
-le = LabelEncoder()
 
-x_test["type_territoire"] = le.fit_transform(x_test["type_territoire"])
-x_train["type_territoire"] = le.fit_transform(x_train["type_territoire"])
-
-
-
+lecv = get_cv(x_train, y_train)
 
 #%%
 
@@ -66,6 +54,12 @@ x_train["type_territoire"] = le.fit_transform(x_train["type_territoire"])
 #%%
 
 
+x_train.isnull().sum(axis = 0)
+
+#%%
+x_train.info()
+
+#%% traitement des données nulles
 
 
 def _encode_valnulles(X):
@@ -140,7 +134,27 @@ def _encode_valnulles(X):
 
 valnulles_encoder = FunctionTransformer(_encode_valnulles)
 
-# x_train = valnulles_encoder.fit_transform(x_train)
+
+x_train = valnulles_encoder.fit_transform(x_train)
+
+#%%
+
+#%% traitement des données nulles
+
+
+#%%
+
+# preparartion des données
+# à faire :
+# encoder les valeurs de la colonne "type_territoire" de x_train
+# encoder les années et mois de la colonne "mois" de x_train
+# faire les colonnes croisées prod x prop
+# ajouter les polynomiales sur les prods et consos
+# partir a priori sur une regression linéaire, ca semblerait assez logique
+
+#%%
+
+
 
 def _encode_dates(X):
     # on garde le mois et l'année pour l'instant
@@ -166,8 +180,15 @@ def _encode_dates(X):
 
 date_encoder = FunctionTransformer(_encode_dates)
 
-#x_train = date_encoder.fit_transform(x_train)
 
+x_train = date_encoder.fit_transform(x_train)
+
+#%%
+
+
+#%%
+
+#%%
 def _encode_prop(X):
     X_encoded = X.copy()
     # conso_totale x prop_conso_jour
@@ -196,7 +217,11 @@ def _encode_prop(X):
 
 prop_encoder = FunctionTransformer(_encode_prop)
 
-# x_train = prop_encoder.fit_transform(x_train)
+x_train = prop_encoder.fit_transform(x_train)
+
+#%% 
+
+# on va ajouter les colonnes pour les puissances au carré
 
 def _encode_puissance(X):
     X_encoded = X.copy()
@@ -232,270 +257,28 @@ def _encode_puissance(X):
 
 puissance_encoder = FunctionTransformer(_encode_puissance)
 
-# x_train = puissance_encoder.fit_transform(x_train)
-
-
-# on transforme pour les  encoding de colonnes
-
-#%%
-
-models = {
-    "RandomForest": RandomForestRegressor(
-        n_estimators = 10, random_state=0, max_depth=5, criterion="absolute_error"
-    ),
-    "GradientBoostingRegressor": GradientBoostingRegressor(
-        learning_rate = 0.2, max_depth= 14, min_samples_leaf= 6, min_samples_split= 5, n_estimators= 90, subsample= 1, random_state=0, loss='absolute_error'),
-    "NeutralGradientBoostingRegressor": GradientBoostingRegressor(random_state=0, loss='absolute_error'),
-    "HistGradientBoostingRegressor": HistGradientBoostingRegressor(
-        max_iter = 80, max_depth= 5, min_samples_leaf= 3, learning_rate=0.1 , random_state=0, loss='absolute_error'),
-    "NeutralHistGradientBoostingRegressor": HistGradientBoostingRegressor(random_state=0, loss='absolute_error'),
-    "linearregression": LinearRegression(),
-    "lasso": Lasso(alpha=0.5),
-    "lassoCv": LassoCV(alphas=[10000, 20000, 30000, 100000, 10000000 ], max_iter=20, tol=0.01, cv = 5),
-}
-
-#%%
-
-# on fait un pipeline avec toutes les transformations de préparation
-
-data_prep_pipeline = Pipeline([
-    ('null', valnulles_encoder), 
-    ('date', date_encoder),
-    ('prop', prop_encoder), 
-    ('poly', puissance_encoder),
-    # Ajoutez d'autres étapes de préparation des données au besoin
-])
-
-# on applique le pipeline sur x_train
-x_train = data_prep_pipeline.fit_transform(x_train)
-# on applique le pipeline sur x_test
-x_test = data_prep_pipeline.transform(x_test)
+x_train = puissance_encoder.fit_transform(x_train)
 
 
 #%%
 
-
-def get_estimator3():
-
-    lab_processor = LabelEncoder()
-    cat_processor = OrdinalEncoder()
-
-    custom_categories = {
-        "type_territoire": ["Zone d'activités", 'Rural', 'Urbain', 'Semi-urbain'],
-        "year": [2018, 2019, 2020, 2021, 2022, 2023, 2024],
-        "month": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-        "saison": [1, 2, 3, 4]
-    }
-
-    num_processor = "passthrough"
-    # on veut toutes les colonnes numériques
-    num_columns = ['conso_totale', 'prod_totale',
-       'conso_reseau_BT', 'conso_reseau_HTA', 'conso_clients_RES',
-       'conso_clients_PRO', 'conso_clients_ENT', 'prod_reseau_BT',
-       'prod_reseau_HTA', 'prod_filiere_eolien', 'prod_filiere_PV',
-       'prod_filiere_autre', 'taux_linky', 'temperature',
-       'long_reseau_aerien_bt', 'long_reseau_souterrain_bt', 'nb_postes_htabt',
-       'puissance_transfos', 'n_days', 'conso_totale_jour', 'prod_totale_jour',
-       'conso_clients_RES_logement_indiv',
-       'conso_clients_RES_logement_collectif', 'prod_reseau_HTA_type_1',
-       'prod_reseau_HTA_type_2', 'prod_reseau_HTA_type_3',
-       'prod_reseau_HTA_type_4', 'puissance_transfos_2', 'conso_totale_2',
-       'prod_totale_2', 'prod_reseau_BT_2', 'prod_reseau_HTA_2',
-       'prod_filiere_eolien_2', 'prod_filiere_PV_2', 'prod_filiere_autre_2',
-       'conso_clients_RES_2', 'conso_clients_PRO_2', 'conso_clients_ENT_2',
-       'conso_reseau_BT_2', 'conso_reseau_HTA_2']
-    obj_features = ["type_territoire"]
-    categ_features = ["type_territoire", "year", "month", "saison"]
-    suppr_features = ["id_poste_source", "id_dr"]
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            # ('label_encoding', lab_processor, obj_features),
-            ('num','passthrough', num_columns),
-            ('ordinal_encoding', cat_processor, categ_features),
-            ('drop_columns', 'drop', suppr_features)
-        ]
-    )
-    
-    pipeline = Pipeline([
-        # ('prep', data_prep_pipeline),
-        ('proc', preprocessor),
-        ('mod', models["GradientBoostingRegressor"])
-    ])
-    
-    return pipeline
-
-#%%
+############################################"
+# STOP"
 
 
 #%%
 
+# On veut etudier la correlation entre les variables
 
-model = get_estimator3()
+# on dégage les colonnes qui ne servent à rien
+x_train = x_train.drop(columns=[])
+# on va faire une heatmap
+import seaborn as sns
 
-model.fit(x_train, y_train)
+# on va faire une heatmap
+corr = x_train.corr()
+sns.heatmap(corr, 
+            xticklabels=corr.columns.values,
+            yticklabels=corr.columns.values)
 
-#%%
-
-y_pred = model.predict(x_test)
-
-#%%
-
-# on calcule l'erreur sur le jeu d'entrainement
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_error
-from math import sqrt
-
-
-# Make predictions on the test data
-y_pred = model.predict(x_test)
-
-# Calculate the mean absolute error on the training data
-y_pred_train = model.predict(x_train)
-mae = mean_absolute_error(y_train, y_pred_train)
-print("MAE:", mae)
-
-#%%
-# Missing values
-# on remplace les valeurs manquantes par la moyenne pour les seules colonnes numériques de
-# x_train
-
-x_train.info()
-#%%
-
-#%%
-
-
-#%%
-
-from sklearn.model_selection import GridSearchCV
-
-
-lecv = get_cv(x_train, y_train)
-
-# Définir la grille de paramètres pour le GradientBoostingRegressor
-
-param_dist = {
-    'mod__n_estimators': randint(10, 200),
-    'mod__learning_rate': [0.2, 0.1, 0.01, 0.001],
-    'mod__max_depth': randint(5, 20),
-    'mod__min_samples_leaf': randint(2, 10),
-    'mod__min_samples_split': [2, 3, 4, 5, 10, 30],
-    'mod__subsample': [0.8, 1.0]
-}
-
-param_distHGBR = {
-    'mod__learning_rate': [0.2, 0.1, 0.01, 0.001],
-    'mod__max_depth': randint(5, 20),
-    'mod__min_samples_leaf': randint(2, 10),
-    'mod__max_iter': randint(10, 200)
-}
-
-# Créer une instance de GridSearchCV avec votre pipeline et la grille de paramètres
-# grid_search = GridSearchCV(get_estimator2(), param_grid=param_grid, cv=5, scoring='neg_mean_squared_error', n_jobs=-1, verbose=2)
-
-rand_search = RandomizedSearchCV(
-    get_estimator3(), param_distributions=param_dist,
-    n_iter=10, n_jobs=-1, cv=lecv, random_state=0, verbose = 2, scoring='neg_mean_absolute_error'
-)
-
-# Appliquer la recherche sur les hyperparamètres sur vos données
-rand_search.fit(x_train, y_train)
-
-# Afficher les meilleurs paramètres et le meilleur score
-print("Meilleurs paramètres :", rand_search.best_params_)
-print("Meilleur score :", rand_search.best_score_)
-
-# on veut voir tous les résultats pour chaque combinaison de paramètres
-# classés du meilleur au moins bon
-
-results = pd.DataFrame(rand_search.cv_results_)
-results = results.sort_values(by='rank_test_score')
-results
-
-#%%
-rand_search.best_params_
-#%%
-#extraire en csv ces résultats
-results.to_csv("coef GradientB results.csv")
-
-
-#%%
-#%%
-# on calcule l'erreur sur le jeu d'entrainement
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_error
-from math import sqrt
-
-
-# Make predictions on the test data
-y_pred = rand_search.predict(x_test)
-
-# Calculate the mean absolute error on the training data
-y_pred_train = rand_search.predict(x_train)
-mae = mean_absolute_error(y_train, y_pred_train)
-print("MAE:", mae)
-
-
-#%%
-
-## on prépare une cross validation
-from sklearn.model_selection import cross_val_score 
-from sklearn.model_selection import ShuffleSplit
-
-cv = ShuffleSplit(n_splits=3, test_size=0.2, random_state=0)
-scores = cross_val_score(get_estimator3(), x_train, y_train, cv=cv, scoring='neg_mean_absolute_error')
-print(scores)
-
-#%%
-
-# on analyse les résultats de la cross validation
-# on calcule la moyenne des scores
-print("Moyenne des scores :", scores.mean())
-
-# on calcule l'écart type des scores
-print("Ecart type des scores :", scores.std())
-
-# on calcule l'intervalle de confiance à 95%
-print("Intervalle de confiance :", scores.mean() - 2 * scores.std(), scores.mean() + 2 * scores.std())
-
-
-#%%
-
-
-#%%
-import pandas as pd
-import matplotlib.pyplot as plt
-
-#%%
-# Récupération de l'importance des features
-
-# on doit récupérer le modèle/ feature importance
-feature_importances = model.named_steps['mod'].feature_importances_
-
-# on récupère le nom des colonnes dans le pipeline
-
-
-column_transformer = model.named_steps['proc']
-col = column_transformer.get_feature_names_out()
-
-# col = model.named_steps['proc'].transformers_[0][2] + model.named_steps['proc'].transformers_[1][2]
-
-col
-
-# Création d'un DataFrame pour afficher les importances
-feature_importance_df = pd.DataFrame({'Feature': col, 'Importance': feature_importances})
-
-# Trier le DataFrame par importance descendante
-feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
-
-# Affichage des 10 premières features les plus importantes
-print(feature_importance_df.head(100))
-
-#%%
-# Tracé d'un graphique des importances
-plt.figure(figsize=(10, 6))
-plt.barh(feature_importance_df['Feature'][:20], feature_importance_df['Importance'][:20])
-plt.xlabel('Importance')
-plt.title('Top 20 des importances des features dans le modèle RandomForest')
-plt.show()
+# on voit que les variables sont très corrélées entre elles
