@@ -48,237 +48,234 @@ x_test = pd.read_csv(path_to_data + "/testing_input.csv", index_col=0)
 
 lecv = get_cv(x_train, y_train)
 
-#%%
 
+le = LabelEncoder()
 
-#%%
-
-
-x_train.isnull().sum(axis = 0)
+x_test["type_territoire"] = le.fit_transform(x_test["type_territoire"])
+x_train["type_territoire"] = le.fit_transform(x_train["type_territoire"])
 
 #%%
-x_train.info()
 
-#%% traitement des données nulles
+x_train.info()  
+
+x_train
+#%%
+y_train
 
 
-def _encode_valnulles(X):
-    X_encoded = X.copy()
-    # Make sure that DateOfDeparture is of datetime format
-    # il nous faut le ratio de conso_reseau_BT sur conso_totale
-    X_encoded['ratio_conso_BT'] = X_encoded['conso_reseau_BT'] / X_encoded['conso_totale']  
-    # il nous faut le ratio de conso_reseau_HTA sur conso_totale
-    X_encoded['ratio_conso_HTA'] = X_encoded['conso_reseau_HTA'] / X_encoded['conso_totale']
-    # il nous faut le ratio de prod_reseau_BT sur prod_totale
-    X_encoded['ratio_prod_BT'] = X_encoded['prod_reseau_BT'] / X_encoded['prod_totale']
-    # il nous faut le ratio de prod_reseau_HTA sur prod_totale
-    X_encoded['ratio_prod_HTA'] = X_encoded['prod_reseau_HTA'] / X_encoded['prod_totale']
-    # il nous faut le ratio de conso_clients_RES sur conso_totale
-    X_encoded['ratio_conso_RES'] = X_encoded['conso_clients_RES'] / X_encoded['conso_totale']
-    # il nous faut le ratio de conso_clients_PRO sur conso_totale
-    X_encoded['ratio_conso_PRO'] = X_encoded['conso_clients_PRO'] / X_encoded['conso_totale']
-    # il nous faut le ratio de conso_clients_ENT sur conso_totale
-    X_encoded['ratio_conso_ENT'] = X_encoded['conso_clients_ENT'] / X_encoded['conso_totale']
-    # il nous faut le ration de prod_filiere_eolien sur prod_totale
-    X_encoded['ratio_prod_eolien'] = X_encoded['prod_filiere_eolien'] / X_encoded['prod_totale']
-    # il nous faut le ration de prod_filiere_PV sur prod_totale
-    X_encoded['ratio_prod_PV'] = X_encoded['prod_filiere_PV'] / X_encoded['prod_totale']
-    # il nous faut le ration de prod_filiere_autre sur prod_totale
-    X_encoded['ratio_prod_autre'] = X_encoded['prod_filiere_autre'] / X_encoded['prod_totale']
+# on joint x_train et y_train pour pouvoir faire des traitements sur les données
+# on joint sur l'index 
+# x_train.join(y_train)
+
+tX = x_train.join(y_train) 
+
+#  x_train = x_train.drop(columns=["id_dr", "id_poste_source"])
+
+#%%
+
+# dans tX on trace les courbes de conso_totale et prod_totale
+tX.plot(y=["conso_totale", "prod_totale"])
+
+# on trace la somme production + consommation
+# on crée une colonne somme_prod_conso
+tX['diff_prod_conso'] = tX['conso_totale'] + tX['prod_totale']
+tX.plot(y=["diff_prod_conso"])
+
+# on trace un graph avec diff_prod_conso en abscisse et pertes_totales en ordonnée
+tX.plot.scatter(x='diff_prod_conso', y='pertes_totales')
+
+#%%
+
+# on trace sur le meme graphe les courbes de conso_totale en rouge et prod_totale en bleu
+# sur un meme graphique
+# on ordonne tX par val de conso_totale decroissante
+tXs = tX.sort_values(by=['conso_totale'], ascending=False)
+#on réindex tXs
+tXs = tXs.reset_index(drop=True)
+# on trace les courbes
+tXs.plot(y=["conso_totale", "prod_totale", "pertes_totales"])
+
+#%%
+
+#On veut connaitre la répartition des valeurs de conso_totale
+# on va faire un histogramme
+tX['conso_totale'].hist(bins=100)
+
+# on veut connaitre la répartition des valeurs de prod_totale
+# on va faire un histogramme
+tX['prod_totale'].hist(bins=100)
+
+# on veut connaitre la répartition des valeurs de pertes_totales
+
+# on va faire un histogramme
+tX['pertes_totales'].hist(bins=100)
+
+#%%
+
+# filtrons sur les pertes totales < 0
+tXp = tX[tX['pertes_totales'] < 0]
+
+# regardons les taux linky dans tXp 
+tXp['taux_linky'].hist(bins=100)
+
+# on trace tauxlinky en fonction de pertes_totales
+tX.plot.scatter(x='taux_linky', y='pertes_totales')
+
+# on crée une colonne taux_linky * conso_totale
+tX['conso_linky'] = tX['conso_totale'] * tX['taux_linky'] /100
+#
+tX.plot.scatter(x='conso_linky', y='pertes_totales')
+
+
+
+#%%
+tX.plot(y="conso_totale", color="red")
+tX.plot(y="prod_totale", color="blue")
+tX.plot(y="pertes_totales", color="green")
+
+
+#%%
+
+# 
+
+# 
+# quelle est la moyenne des pertes totales de y_train?
+
+y_train.mean()
+
+# on fait un vecteur de la taile de x_test avec la moyenne des pertes totales
+y_test = np.full((len(x_test), 1), y_train.mean())
+
+# on crée un dataframe avec y_test
+y_test = pd.DataFrame(y_test, columns=['pertes_totales'])
+
+# on fait un vecteur de la taille de y_train avec la moyenne des pertes totales
+y_pred = np.full((len(y_train), 1), y_train.mean())
+
+# on crée un dataframe avec y_train
+y_pred = pd.DataFrame(y_train, columns=['pertes_totales'])
+
+# On calcule la MEA
+from sklearn.metrics import mean_absolute_error
+mean_absolute_error(y_train, y_pred)
+
+from sklearn.dummy import DummyRegressor
+
+# Créer un objet DummyRegressor
+dummy_regressor = DummyRegressor(strategy='mean')
+
+# Entraîner le modèle sur les données d'entraînement
+dummy_regressor.fit(x_train, y_train)
+
+# Faire des prédictions sur les données de test
+y_pred_dummy = dummy_regressor.predict(x_test)
+
+# Calculer la MAE sur les données de test
+mean_absolute_error(y_test, y_pred_dummy)
+
+#%%
+# on fait une cross validation 
+from sklearn.model_selection import cross_val_score
+scores = cross_val_score(dummy_regressor, x_train, y_train, cv=5, scoring='neg_mean_absolute_error')
+print(scores)
+
+
+
+
+
+#%%
+
+# calculer la moyenne pour chaque colonne numérique de x_train
+x_train.describe()
+# on prend la ligne des moyennes de x_train.describe()
+x_train.describe().iloc[1]
+
+# on trouve les colonnes de x_train qui ne se terminent pas par un '_2'
+col_moy = []
+for i in x_train.columns:
+    if (i[-2:] != "_2") and (x_train[i].dtype == "float64"):
+        col_moy.append(i)
+col_moy
+
+# on trouve les moyennes par colonnes de col_moy dans x_train 
+x_train[col_moy].mean()
+# sur un graphique
+x_train[col_moy].mean().plot.bar()
+
+
+
+
+
+# x_train.mean()
+
+
+#%%
+
+# Il faudrait trouver les valeurs abhérentes dans x_train parrapport à x_test
+# on va utiliser la fonction isin()
+# on va faire une boucle sur les colonnes de x_train
+# on va comparer les valeurs de x_train et x_test
+# on va faire une liste des valeurs abhérentes
+# on va faire une boucle sur les colonnes de x_train
+# on va comparer les valeurs de x_train et x_test
+# on va faire une liste des valeurs abhérentes
+
+# on crée une liste vide
+liste_valeurs_abh = []
+# on crée une liste vide
+liste_colonnes = []
+
+#%%
+#comp
+
+# donne les statistiques sur x_test
+print(x_test.describe())
+# sur les seules colonnes conso_totale et prod_totale
+print(x_test[["conso_totale", "prod_totale"]].describe())
+# pareil sur x_train
+print(x_train[["conso_totale", "prod_totale"]].describe())
+
+# on trace sur une courbe les valeurs de conso_totale et prod_totale de x_test en bleu histograme
+
+x_test[["conso_totale", "prod_totale"]].hist(bins=100)
+x_train[["conso_totale", "prod_totale"]].hist(bins=100)
+
+# donne les statistiques sur y_train
+print(y_train.describe())
+# sur la seule colonne pertes_totales
+
+
+#%%
+# Create empty lists
+outlier_values = []
+outlier_columns = []
+
+# Loop through the columns of x_train
+for column in x_train.columns:
+
+    # testons si la colonne est numérique
+    if x_train[column].dtype == "float64":
+    # donne moi les valeurs max et min de x_test pour cette colonne
+        max_test = x_test[column].max()
+        min_test = x_test[column].min()
+        # donne moi en outliers les valeurs de x_train qui ne sont pas dans l'intervalle [min_test, max_test]    
+        outliers = x_train[~x_train[column].between(min_test, max_test)]    
+        # Check if there are any outliers
+        if not outliers.empty:
+            # Append the outlier values and column name to the lists
+            outlier_values.append(outliers[column].values)
+            outlier_columns.append(column)
+
+# Print the outlier values and columns
+for values, column in zip(outlier_values, outlier_columns):
+    print(f"Outliers in column '{column}': {values}")
+
+
+#%%
     
-
-    colonnes_a_remplir = ['prop_clts_logement_indiv', 'prop_clts_logement_collectif',
-                        'temperature',
-                        'long_reseau_aerien_bt', 'long_reseau_souterrain_bt', 
-                        'nb_postes_htabt',
-                        'puissance_transfos',
-                        'prop_hta_type_1', 'prop_hta_type_2', 'prop_hta_type_3', 'prop_hta_type_4',
-                        'ratio_conso_BT', 'ratio_conso_HTA', 'ratio_prod_BT', 'ratio_prod_HTA', 'ratio_conso_RES', 'ratio_conso_PRO', 'ratio_conso_ENT', 'ratio_prod_eolien', 'ratio_prod_PV', 'ratio_prod_autre'
-    ]
-
-    # Calcul de la moyenne pour chaque colonne spécifiée
-    moyennes_par_colonne = X_encoded[colonnes_a_remplir].mean()
-    # Remplissage des valeurs manquantes uniquement dans les colonnes spécifiées avec la moyenne respective
-    X_encoded[colonnes_a_remplir] = X_encoded[colonnes_a_remplir].fillna(value=moyennes_par_colonne)
-
-    # on remplit les colonnes suivantes avec une formule
-    #conso_reseau_BT ,conso_reseau_HTA,conso_clients_RES ,conso_clients_PRO ,conso_clients_ENT,prod_reseau_BT,
-    #prod_reseau_HTA,prod_filiere_eolien,prod_filiere_PV ,
-    #prod_filiere_autre
-
-    colonnes_a_remplir2 = ['conso_reseau_BT', 'conso_reseau_HTA', 'conso_clients_RES', 'conso_clients_PRO', 'conso_clients_ENT', 'prod_reseau_BT', 'prod_reseau_HTA', 'prod_filiere_eolien', 'prod_filiere_PV', 'prod_filiere_autre']
-    # mais seulement pour les valeurs nulles
-    X_encoded['conso_reseau_BT'] = X_encoded['conso_reseau_BT'].fillna(value=X_encoded['conso_totale'] * X_encoded['ratio_conso_BT'])
-    X_encoded['conso_reseau_HTA'] = X_encoded['conso_reseau_HTA'].fillna(value=X_encoded['conso_totale'] * X_encoded['ratio_conso_HTA'])
-    X_encoded['conso_clients_RES'] = X_encoded['conso_clients_RES'].fillna(value=X_encoded['conso_totale'] * X_encoded['ratio_conso_RES'])
-    X_encoded['conso_clients_PRO'] = X_encoded['conso_clients_PRO'].fillna(value=X_encoded['conso_totale'] * X_encoded['ratio_conso_PRO'])
-    X_encoded['conso_clients_ENT'] = X_encoded['conso_clients_ENT'].fillna(value=X_encoded['conso_totale'] * X_encoded['ratio_conso_ENT'])
-    X_encoded['prod_reseau_BT'] = X_encoded['prod_reseau_BT'].fillna(value=X_encoded['prod_totale'] * X_encoded['ratio_prod_BT'])
-    X_encoded['prod_reseau_HTA'] = X_encoded['prod_reseau_HTA'].fillna(value=X_encoded['prod_totale'] * X_encoded['ratio_prod_HTA'])
-    X_encoded['prod_filiere_eolien'] = X_encoded['prod_filiere_eolien'].fillna(value=X_encoded['prod_totale'] * X_encoded['ratio_prod_eolien'])
-    X_encoded['prod_filiere_PV'] = X_encoded['prod_filiere_PV'].fillna(value=X_encoded['prod_totale'] * X_encoded['ratio_prod_PV'])
-    X_encoded['prod_filiere_autre'] = X_encoded['prod_filiere_autre'].fillna(value=X_encoded['prod_totale'] * X_encoded['ratio_prod_autre'])
-
-    # pour le territoire , on met 0 là ou c'est null
-    X_encoded['type_territoire'] = X_encoded['type_territoire'].fillna(value=0)
- 
-    # On retourne en supprimant toutes les colonnes qui ne servent plus
-
-    return X_encoded.drop(columns=["ratio_conso_BT", "ratio_conso_HTA", "ratio_prod_BT",
-                              "ratio_prod_HTA", "ratio_conso_RES", "ratio_conso_PRO",
-                               "ratio_conso_ENT", "ratio_prod_eolien", "ratio_prod_PV","ratio_prod_autre"])
-
-    #return X_encoded
-
-
-
-valnulles_encoder = FunctionTransformer(_encode_valnulles)
-
-
-x_train = valnulles_encoder.fit_transform(x_train)
-
+# donne moi la distribution des pertes de y_train
+y_train.hist(bins=100)
 #%%
-
-#%% traitement des données nulles
-
-
-#%%
-
-# preparartion des données
-# à faire :
-# encoder les valeurs de la colonne "type_territoire" de x_train
-# encoder les années et mois de la colonne "mois" de x_train
-# faire les colonnes croisées prod x prop
-# ajouter les polynomiales sur les prods et consos
-# partir a priori sur une regression linéaire, ca semblerait assez logique
-
-#%%
-
-
-
-def _encode_dates(X):
-    # on garde le mois et l'année pour l'instant
-    # a priori sans impact sur les pertes techniques mais peut etre sur les pertes non techniques
-    # exemple : plus de fraude l'hiver?
-    # ne n_days pour voir s'il y a une évolution temporelle de la formule (amélioration du réseau ? de la detection de fraude?)
-    X_encoded = X.copy()
-    # Make sure that DateOfDeparture is of datetime format
-    X_encoded['moisannee'] = pd.to_datetime(X_encoded['mois'], format="%m/%Y")
-    # Encode the DateOfDeparture
-    X_encoded['year'] = X_encoded['moisannee'].dt.year
-    X_encoded['month'] = X_encoded['moisannee'].dt.month
-    X_encoded['n_days'] = X_encoded['moisannee'].apply(
-        lambda date: (date - pd.to_datetime("1970-01-01")).days
-    )
-    # la saison du mois
-    X_encoded['saison'] = X_encoded['month'].apply(
-        lambda date: 1 if date in [12, 1, 2] else 2 if date in [3, 4, 5] else 3 if date in [6, 7, 8] else 4
-    )
-    # Once we did the encoding, we will not need DateOfDeparture
-    return X_encoded.drop(columns=["moisannee", "mois"])
-
-
-date_encoder = FunctionTransformer(_encode_dates)
-
-
-x_train = date_encoder.fit_transform(x_train)
-
-#%%
-
-
-#%%
-
-#%%
-def _encode_prop(X):
-    X_encoded = X.copy()
-    # conso_totale x prop_conso_jour
-    X_encoded['conso_totale_jour'] = X_encoded['conso_totale'] * X_encoded['prop_conso_jour']
-    # prod_totale x prop_prod_jour
-    X_encoded['prod_totale_jour'] = X_encoded['prod_totale'] * X_encoded['prop_prod_jour']
-    # Prop_clts_logement_indiv x conso_clients_RES
-    X_encoded['conso_clients_RES_logement_indiv'] = X_encoded['conso_clients_RES'] * X_encoded['prop_clts_logement_indiv']
-    # Prop_clts_logement_collectif x conso_clients_RES
-    X_encoded['conso_clients_RES_logement_collectif'] = X_encoded['conso_clients_RES'] * X_encoded['prop_clts_logement_collectif']
-    # Prop_hta_type_1 x prod_reseau_HTA
-    X_encoded['prod_reseau_HTA_type_1'] = X_encoded['prod_reseau_HTA'] * X_encoded['prop_hta_type_1']
-    # Prop_hta_type_2 x prod_reseau_HTA
-    X_encoded['prod_reseau_HTA_type_2'] = X_encoded['prod_reseau_HTA'] * X_encoded['prop_hta_type_2']
-    # Prop_hta_type_3 x prod_reseau_HTA
-    X_encoded['prod_reseau_HTA_type_3'] = X_encoded['prod_reseau_HTA'] * X_encoded['prop_hta_type_3']
-    # Prop_hta_type_4 x prod_reseau_HTA
-    X_encoded['prod_reseau_HTA_type_4'] = X_encoded['prod_reseau_HTA'] * X_encoded['prop_hta_type_4']
-    
-    # proposition de raamener tout ca à une prod et une conso par jour ... en divisant par le nombre de jours dans le mois, voire trouver un moyen pour intégrer les jours feriés
-    
-    # on supprime les colonnes qui ne servent plus
-    return X_encoded.drop(columns=["prop_conso_jour", "prop_prod_jour", "prop_clts_logement_indiv", "prop_clts_logement_collectif", 
-                                   "prop_hta_type_1", "prop_hta_type_2", "prop_hta_type_3", "prop_hta_type_4"])
-
-
-prop_encoder = FunctionTransformer(_encode_prop)
-
-x_train = prop_encoder.fit_transform(x_train)
-
-#%% 
-
-# on va ajouter les colonnes pour les puissances au carré
-
-def _encode_puissance(X):
-    X_encoded = X.copy()
-
-    # puissance_transfos au carré
-    X_encoded['puissance_transfos_2'] = X_encoded['puissance_transfos']**2
-    # conso_totale au carré
-    X_encoded['conso_totale_2'] = X_encoded['conso_totale']**2
-    # prod_totale au carré
-    X_encoded['prod_totale_2'] = X_encoded['prod_totale']**2
-    # prod_reseau_BT au carré
-    X_encoded['prod_reseau_BT_2'] = X_encoded['prod_reseau_BT']**2
-    # prod_reseau_HTA au carré
-    X_encoded['prod_reseau_HTA_2'] = X_encoded['prod_reseau_HTA']**2
-    # prod_filiere_eolien au carré
-    X_encoded['prod_filiere_eolien_2'] = X_encoded['prod_filiere_eolien']**2
-    # prod_filiere_PV au carré
-    X_encoded['prod_filiere_PV_2'] = X_encoded['prod_filiere_PV']**2
-    # prod_filiere_autre au carré
-    X_encoded['prod_filiere_autre_2'] = X_encoded['prod_filiere_autre']**2
-    # conso_clients_RES au carré
-    X_encoded['conso_clients_RES_2'] = X_encoded['conso_clients_RES']**2
-    # conso_clients_PRO au carré
-    X_encoded['conso_clients_PRO_2'] = X_encoded['conso_clients_PRO']**2
-    # conso_clients_ENT au carré
-    X_encoded['conso_clients_ENT_2'] = X_encoded['conso_clients_ENT']**2
-    # conso_reseau_BT au carré
-    X_encoded['conso_reseau_BT_2'] = X_encoded['conso_reseau_BT']**2
-    # conso_reseau_HTA au carré
-    X_encoded['conso_reseau_HTA_2'] = X_encoded['conso_reseau_HTA']**2
-
-    return X_encoded
-
-puissance_encoder = FunctionTransformer(_encode_puissance)
-
-x_train = puissance_encoder.fit_transform(x_train)
-
-
-#%%
-
-############################################"
-# STOP"
-
-
-#%%
-
-# On veut etudier la correlation entre les variables
-
-# on dégage les colonnes qui ne servent à rien
-x_train = x_train.drop(columns=[])
-# on va faire une heatmap
-import seaborn as sns
-
-# on va faire une heatmap
-corr = x_train.corr()
-sns.heatmap(corr, 
-            xticklabels=corr.columns.values,
-            yticklabels=corr.columns.values)
-
-# on voit que les variables sont très corrélées entre elles
+# compte les pertes négatives et positives
+print(y_train[y_train["pertes_totales"] < 0].count())
+print(y_train[y_train["pertes_totales"] > 0].count())
